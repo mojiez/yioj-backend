@@ -1,5 +1,6 @@
 package com.yichen.yioj.service;
 
+import com.yichen.yioj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.yichen.yioj.model.entity.QuestionSubmit;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.yichen.yioj.model.entity.User;
@@ -16,8 +17,8 @@ public interface QuestionSubmitService extends IService<QuestionSubmit> {
      * @param loginUser
      * @return
      */
-    int doQuestionSubmit(long questionId, User loginUser);
+    int doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser);
 
     @Transactional(rollbackFor = Exception.class)
-    int doQuestionSubmitInner(long userId, long questionId);
+    int doQuestionSubmitInner(long userId, QuestionSubmitAddRequest questionSubmitAddRequest);
 }

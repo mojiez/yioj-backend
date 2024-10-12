@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yichen.yioj.common.ErrorCode;
 import com.yichen.yioj.exception.BusinessException;
+import com.yichen.yioj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.yichen.yioj.model.entity.*;
 import com.yichen.yioj.service.QuestionService;
 import com.yichen.yioj.service.QuestionSubmitService;
 import com.yichen.yioj.mapper.QuestionSubmitMapper;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +25,8 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
     @Resource
     private QuestionService questionService;
     @Override
-    public int doQuestionSubmit(long questionId, User loginUser) {
+    public int doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser) {
+        long questionId = questionSubmitAddRequest.getQuestionId();
         // 判断实体是否存在，根据类别获取实体
         Question question = questionService.getById(questionId);
         if (question == null) {
@@ -51,34 +54,39 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
              * 	•	对于不同的 userId：由于它们产生不同的锁，多个线程可以并发执行各自的操作，而不会互相影响。这确保了系统在处理不同用户提交时的高效性。
              * 	•	对于相同的 userId：如果多个线程尝试同时提交相同用户的问题，它们会被串行化处理，因为它们共享同一个锁。这样可以避免数据冲突或不一致的状态。
              */
-            return questionSubmitService.doQuestionSubmitInner(userId, questionId);
+            return questionSubmitService.doQuestionSubmitInner(userId, questionSubmitAddRequest);
         }
     }
     /**
      * 封装了事务的方法
      *
      * @param userId
-     * @param questionId
+     * @param questionSubmitAddRequest
      * @return
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public int doQuestionSubmitInner(long userId, long questionId) {
+    public int doQuestionSubmitInner(long userId, QuestionSubmitAddRequest questionSubmitAddRequest) {
         QuestionSubmit questionSubmit = new QuestionSubmit();
-        questionSubmit.setUserId(userId);
-        questionSubmit.setQuestionId(questionId);
-
-        // 根据 userId和questionId进行查询
+        BeanUtils.copyProperties(questionSubmitAddRequest, questionSubmit);
         QueryWrapper<QuestionSubmit> questionSubmitQueryWrapper = new QueryWrapper<>(questionSubmit);
+        // 这里查的是  SELECT id,language,code,judgeInfo,status,questionId,userId,createTime,updateTime,isDelete FROM question_submit WHERE language=? AND code=? AND questionId=? AND userId=? AND isDelete=0
+        // 都要相同 感觉很合理
         QuestionSubmit oldQuestionSubmit = this.getOne(questionSubmitQueryWrapper);
         boolean result;
         // 如果说之前已经提交过 更新提交次数就行
-        // todo 更新提交正确错误
+
+        // todo 执行判题服务
         if (oldQuestionSubmit != null) {
+//            result = questionService.update()
+//                        .eq("questionId", questionSubmitAddRequest.getQuestionId())
+//                        .eq("userId", questionSubmitAddRequest.getUserId())
+//                        .setSql("submitNum = submitNum + 1")
+//                        .update();
             result = questionService.update()
-                        .eq("id", questionId)
-                        .setSql("submitNum = submitNum + 1")
-                        .update();
+                    .eq("id", questionSubmitAddRequest.getQuestionId())
+                    .setSql("submitNum = submitNum + 1")
+                    .update();
             if (result) {
 //                // 如果删除成功 提交数 -1
 //                result = questionService.update()
@@ -96,7 +104,7 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
             result = this.save(questionSubmit);
             if (result) {
                 result = questionService.update()
-                        .eq("id", questionId)
+                        .eq("id", questionSubmitAddRequest.getQuestionId())
                         .setSql("submitNum = submitNum + 1")
                         .update();
                 return result? 1:0;
@@ -104,7 +112,6 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR);
             }
         }
-
     }
 }
 

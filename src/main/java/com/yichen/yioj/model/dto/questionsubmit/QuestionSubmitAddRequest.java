@@ -3,6 +3,7 @@ package com.yichen.yioj.model.dto.questionsubmit;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 帖子点赞请求
@@ -17,6 +18,27 @@ public class QuestionSubmitAddRequest implements Serializable {
      * 问题 id
      */
     private Long questionId;
+
+    /**
+     * 编程语言
+     */
+    private String language;
+
+    /**
+     * 用户代码
+     */
+    private String code;
+
+    /**
+     * 判题信息（json 对象）
+     */
+    private String judgeInfo;
+
+
+    /**
+     * 创建用户 id
+     */
+    private Long userId;
 
     private static final long serialVersionUID = 1L;
 }

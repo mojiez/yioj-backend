@@ -33,7 +33,7 @@ server:
 #      cookie:
 #        max-age: 5s
 #      单位默认是s 但是好像只能按60的整数倍来设置
-      timeout: 120
+      timeout: 2592000
 #        max-age: 2592000
 mybatis-plus:
   configuration:
@@ -84,3 +84,7 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.yichen.yioj.controller
+
+# 代码沙箱配置
+codesandbox:
+  type: "thirdParty"

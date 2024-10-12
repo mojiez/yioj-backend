@@ -18,7 +18,7 @@ public class QuestionSubmit implements Serializable {
     /**
      * id
      */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
@@ -50,21 +50,6 @@ public class QuestionSubmit implements Serializable {
      * 创建用户 id
      */
     private Long userId;
-
-    /**
-     * 创建时间
-     */
-    private Date createTime;
-
-    /**
-     * 更新时间
-     */
-    private Date updateTime;
-
-    /**
-     * 是否删除
-     */
-    private Byte isDelete;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

@@ -70,7 +70,7 @@ public class QuestionSubmitController {
         // 登录才能提交
         final User loginUser = userService.getLoginUser(request);
         long questionId = questionSubmitAddRequest.getQuestionId();
-        int result = questionSubmitService.doQuestionSubmit(questionId, loginUser);
+        int result = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
         return ResultUtils.success(result);
     }
 }
