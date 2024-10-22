@@ -3,6 +3,7 @@ package com.yichen.yioj.judge.codesandbox;
 import com.yichen.yioj.judge.codesandbox.factory.CodeBoxFactory;
 import com.yichen.yioj.judge.codesandbox.impl.ExampleCodeSandbox;
 import com.yichen.yioj.judge.codesandbox.model.ExecuteCodeRequest;
+import com.yichen.yioj.judge.codesandbox.model.ExecuteCodeResponse;
 import com.yichen.yioj.judge.codesandbox.proxy.CodeSandBoxProxy;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -57,16 +58,25 @@ class CodeSandBoxTest {
      */
     @Test
     public void testProxyCodeSandBox() {
+        // 使用代理模式调用远程沙箱
         CodeSandBox codeSandBox = CodeBoxFactory.newInstance(type);
         CodeSandBoxProxy codeSandBoxProxy = new CodeSandBoxProxy(codeSandBox);
-        String code = "int main(){return 0;}";
+        String code = "public class Main {\n" +
+                "    public static void main(String[] args) {\n" +
+                "        int a = Integer.parseInt(args[0]);\n" +
+                "        int b = Integer.parseInt(args[1]);\n" +
+                "        System.out.println(\"结果: \" + (a + b));\n" +
+                "    }\n" +
+                "}";
         String language = "java";
-        List<String> inputList = Arrays.asList("1+1", "2+3", "5+5");
+        List<String> inputList = Arrays.asList("1 1", "2 2", "5 666");
         ExecuteCodeRequest executeCodeRequest = ExecuteCodeRequest.builder()
                 .code(code)
                 .language(language)
                 .inputList(inputList)
                 .build();
-        Assertions.assertNull(codeSandBoxProxy.executeCode(executeCodeRequest));
+//        Assertions.assertNull(codeSandBoxProxy.executeCode(executeCodeRequest));
+        ExecuteCodeResponse executeCodeResponse = codeSandBoxProxy.executeCode(executeCodeRequest);
+        System.out.println(executeCodeResponse);
     }
 }

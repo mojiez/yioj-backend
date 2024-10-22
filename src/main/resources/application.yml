@@ -87,4 +87,4 @@ knife4j:
 
 # 代码沙箱配置
 codesandbox:
-  type: "thirdParty"
+  type: "remote"

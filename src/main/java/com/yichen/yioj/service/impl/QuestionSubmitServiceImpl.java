@@ -4,13 +4,18 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yichen.yioj.common.ErrorCode;
 import com.yichen.yioj.exception.BusinessException;
+import com.yichen.yioj.judge.JudgeService;
+import com.yichen.yioj.judge.impl.JudgeServiceImpl;
 import com.yichen.yioj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.yichen.yioj.model.entity.*;
+import com.yichen.yioj.model.vo.QuestionSubmitVO;
 import com.yichen.yioj.service.QuestionService;
 import com.yichen.yioj.service.QuestionSubmitService;
 import com.yichen.yioj.mapper.QuestionSubmitMapper;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +29,15 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
     implements QuestionSubmitService{
     @Resource
     private QuestionService questionService;
+    @Autowired
+    @Lazy
+    private JudgeService judgeService;
+//    @Autowired
+//    public void setJudgeService(JudgeService judgeService) {
+//        this.judgeService = judgeService;
+//    }
     @Override
-    public int doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser) {
+    public QuestionSubmitVO doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser) {
         long questionId = questionSubmitAddRequest.getQuestionId();
         // 判断实体是否存在，根据类别获取实体
         Question question = questionService.getById(questionId);
@@ -66,7 +78,7 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public int doQuestionSubmitInner(long userId, QuestionSubmitAddRequest questionSubmitAddRequest) {
+    public QuestionSubmitVO doQuestionSubmitInner(long userId, QuestionSubmitAddRequest questionSubmitAddRequest) {
         QuestionSubmit questionSubmit = new QuestionSubmit();
         BeanUtils.copyProperties(questionSubmitAddRequest, questionSubmit);
         QueryWrapper<QuestionSubmit> questionSubmitQueryWrapper = new QueryWrapper<>(questionSubmit);
@@ -76,25 +88,28 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         boolean result;
         // 如果说之前已经提交过 更新提交次数就行
 
+        /**
+         * 注意！！ 这样的写法是错误的
+         * 如果你在代码中直接 new 一个被声明为 Spring Bean 的类（例如 @Service、@Component、@Repository 等），
+         * 那么 Spring 的管理和注解所带来的特性将不适用于这个通过 new 创建的实例。
+         * 也就是说，该类上的 Spring 注解声明将变得无效，因为这个实例并未被 Spring 容器管理。
+         *
+         * 为了确保 Spring 的特性和功能有效，你应当始终通过 Spring 容器来获取这些 Bean，
+         * 例如使用 @Autowired 或者通过 ApplicationContext.getBean() 获取实例，而不是使用 new 来创建实例。
+         * 这样才能确保 Spring 的依赖注入、AOP、生命周期管理等功能都能正常工作。
+         */
+//        JudgeService judgeService = new JudgeServiceImpl();
         // todo 执行判题服务
         if (oldQuestionSubmit != null) {
-//            result = questionService.update()
-//                        .eq("questionId", questionSubmitAddRequest.getQuestionId())
-//                        .eq("userId", questionSubmitAddRequest.getUserId())
-//                        .setSql("submitNum = submitNum + 1")
-//                        .update();
+            // 修改提交次数
             result = questionService.update()
                     .eq("id", questionSubmitAddRequest.getQuestionId())
                     .setSql("submitNum = submitNum + 1")
                     .update();
             if (result) {
-//                // 如果删除成功 提交数 -1
-//                result = questionService.update()
-//                        .eq("id", questionId)
-//                        .gt("submitNum", 0)
-//                        .setSql("submitNum = submitNum - 1")
-//                        .update();
-                return -1;
+                // 执行判题
+                return judgeService.doJudge(oldQuestionSubmit.getId());
+
             }else {
                 // 删除失败
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR);
@@ -104,15 +119,22 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
             result = this.save(questionSubmit);
             if (result) {
                 result = questionService.update()
-                        .eq("id", questionSubmitAddRequest.getQuestionId())
+                        .eq("id", questionSubmit.getQuestionId())
                         .setSql("submitNum = submitNum + 1")
                         .update();
-                return result? 1:0;
+                if (result) {
+                    QuestionSubmitVO questionSubmitVO = judgeService.doJudge(questionSubmit.getId());
+                    return questionSubmitVO;
+                }else {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新题目提交次数失败");
+                }
             }else {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存题目提交失败");
             }
         }
     }
+
+
 }
 
 

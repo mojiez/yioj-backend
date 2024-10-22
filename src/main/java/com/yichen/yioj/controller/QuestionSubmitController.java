@@ -6,6 +6,7 @@ import com.yichen.yioj.common.ResultUtils;
 import com.yichen.yioj.exception.BusinessException;
 import com.yichen.yioj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.yichen.yioj.model.entity.User;
+import com.yichen.yioj.model.vo.QuestionSubmitVO;
 import com.yichen.yioj.service.QuestionSubmitService;
 import com.yichen.yioj.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -24,53 +25,33 @@ import javax.servlet.http.HttpServletRequest;
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @RestController
-@RequestMapping("/question_submit")
+//@RequestMapping("/question_submit")
 @Slf4j
 public class QuestionSubmitController {
 
-    @Resource
-    private QuestionSubmitService questionSubmitService;
-
-    @Resource
-    private UserService userService;
+//    @Resource
+//    private QuestionSubmitService questionSubmitService;
+//
+//    @Resource
+//    private UserService userService;
 
 //    /**
-//     * 点赞 / 取消点赞
+//     * 提交题目
 //     *
 //     * @param questionSubmitAddRequest
 //     * @param request
 //     * @return resultNum 本次点赞变化数
 //     */
 //    @PostMapping("/")
-//    public BaseResponse<Integer> doThumb(@RequestBody QuestionSubmitAddRequest questionSubmitAddRequest,
-//            HttpServletRequest request) {
-//        if (questionSubmitAddRequest == null || questionSubmitAddRequest.getPostId() <= 0) {
+//    public BaseResponse<QuestionSubmitVO> doSubmit(@RequestBody QuestionSubmitAddRequest questionSubmitAddRequest,
+//                                                   HttpServletRequest request) {
+//        if (questionSubmitAddRequest == null || questionSubmitAddRequest.getQuestionId() <= 0) {
 //            throw new BusinessException(ErrorCode.PARAMS_ERROR);
 //        }
-//        // 登录才能点赞
+//        // 登录才能提交
 //        final User loginUser = userService.getLoginUser(request);
-//        long postId = questionSubmitAddRequest.getPostId();
-//        int result = questionSubmitService.doQuestionSubmit(postId, loginUser);
+//        long questionId = questionSubmitAddRequest.getQuestionId();
+//        QuestionSubmitVO result = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
 //        return ResultUtils.success(result);
 //    }
-
-    /**
-     * 提交 / 取消点赞
-     *
-     * @param questionSubmitAddRequest
-     * @param request
-     * @return resultNum 本次点赞变化数
-     */
-    @PostMapping("/")
-    public BaseResponse<Integer> doSubmit(@RequestBody QuestionSubmitAddRequest questionSubmitAddRequest,
-                                         HttpServletRequest request) {
-        if (questionSubmitAddRequest == null || questionSubmitAddRequest.getQuestionId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        // 登录才能提交
-        final User loginUser = userService.getLoginUser(request);
-        long questionId = questionSubmitAddRequest.getQuestionId();
-        int result = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
-        return ResultUtils.success(result);
-    }
 }

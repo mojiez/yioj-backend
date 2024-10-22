@@ -14,12 +14,16 @@ import com.yichen.yioj.model.dto.question.QuestionAddRequest;
 import com.yichen.yioj.model.dto.question.QuestionEditRequest;
 import com.yichen.yioj.model.dto.question.QuestionQueryRequest;
 import com.yichen.yioj.model.dto.question.QuestionUpdateRequest;
+import com.yichen.yioj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.yichen.yioj.model.entity.Question;
 import com.yichen.yioj.model.entity.User;
+import com.yichen.yioj.model.vo.QuestionSubmitVO;
 import com.yichen.yioj.model.vo.QuestionVO;
 import com.yichen.yioj.service.QuestionService;
+import com.yichen.yioj.service.QuestionSubmitService;
 import com.yichen.yioj.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +47,10 @@ public class QuestionController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private QuestionSubmitService questionSubmitService;
+
 
     // region 增删改查
 
@@ -111,11 +119,12 @@ public class QuestionController {
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updateQuestion(@RequestBody QuestionUpdateRequest questionUpdateRequest) {
-        if (questionUpdateRequest == null || questionUpdateRequest.getId() <= 0) {
+        if (questionUpdateRequest == null && questionUpdateRequest.getId()!=null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Question question = new Question();
         BeanUtils.copyProperties(questionUpdateRequest, question);
+        question.setId(Long.valueOf(questionUpdateRequest.getId()));
         // todo 前端传过来的是一个List<String>， 怎么实现的？
 //        List<String> tags = questionUpdateRequest.getTags();
 //        if (tags != null) {
@@ -124,7 +133,7 @@ public class QuestionController {
 
         // 参数校验
         questionService.validQuestion(question, false);
-        long id = questionUpdateRequest.getId();
+        String id = questionUpdateRequest.getId();
         // 判断是否存在
         Question oldQuestion = questionService.getById(id);
         ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
@@ -261,4 +270,23 @@ public class QuestionController {
         return ResultUtils.success(result);
     }
 
+    /**
+     * 提交题目
+     *
+     * @param questionSubmitAddRequest
+     * @param request
+     * @return resultNum 本次点赞变化数
+     */
+    @PostMapping("/question_submit")
+    public BaseResponse<QuestionSubmitVO> doSubmit(@RequestBody QuestionSubmitAddRequest questionSubmitAddRequest,
+                                                   HttpServletRequest request) {
+        if (questionSubmitAddRequest == null || questionSubmitAddRequest.getQuestionId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 登录才能提交
+        final User loginUser = userService.getLoginUser(request);
+        long questionId = questionSubmitAddRequest.getQuestionId();
+        QuestionSubmitVO result = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
+        return ResultUtils.success(result);
+    }
 }

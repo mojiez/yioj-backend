@@ -1,11 +1,11 @@
 package com.yichen.yioj.judge.impl;
 
+import com.yichen.yioj.judge.codesandbox.proxy.CodeSandBoxProxy;
+import com.yichen.yioj.judge.strategy.JudgeStrategyFactory;
 import com.yichen.yioj.judge.codesandbox.model.JudgeInfo;
 
 import cn.hutool.json.JSONUtil;
-import com.google.common.collect.Lists;
 
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +16,8 @@ import com.yichen.yioj.judge.codesandbox.CodeSandBox;
 import com.yichen.yioj.judge.codesandbox.factory.CodeBoxFactory;
 import com.yichen.yioj.judge.codesandbox.model.ExecuteCodeRequest;
 import com.yichen.yioj.judge.codesandbox.model.ExecuteCodeResponse;
+import com.yichen.yioj.judge.strategy.JudgeContext;
+import com.yichen.yioj.judge.strategy.JudgeStrategy;
 import com.yichen.yioj.model.entity.Question;
 import com.yichen.yioj.model.entity.QuestionSubmit;
 import com.yichen.yioj.model.enums.QuestionSubmitStatusEnum;
@@ -24,7 +26,7 @@ import com.yichen.yioj.model.vo.JudgeConfig;
 import com.yichen.yioj.model.vo.QuestionSubmitVO;
 import com.yichen.yioj.service.QuestionService;
 import com.yichen.yioj.service.QuestionSubmitService;
-import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -34,8 +36,13 @@ import javax.annotation.Resource;
 public class JudgeServiceImpl implements JudgeService {
     @Resource
     private QuestionService questionService;
-    @Resource
+    @Autowired
     private QuestionSubmitService questionSubmitService;
+    // 使用set方法注入 先曝光后构造 避免循环依赖
+//    @Autowired
+//    public void setQuestionSubmitService(QuestionSubmitService questionSubmitService) {
+//        this.questionSubmitService = questionSubmitService;
+//    }
 
     @Value("${codesandbox.type:example}")
     private String type;
@@ -44,10 +51,10 @@ public class JudgeServiceImpl implements JudgeService {
     public QuestionSubmitVO doJudge(long questionSubmitId) {
         // 1. 传入题目的提交id 获取到对应的题目、提交信息（代码、编程语言等）
         // 2. 如果题目的提交状态不为等待中， 就不用重复执行了
-        // 2. 更改题目的提交状态为判题中（这样如果用户重复提交（代码一样 语言一样。。），那么就不重复执行, 因为第二步直接return了）
+        // 3. 更改题目的提交状态为判题中（这样如果用户重复提交（代码一样 语言一样。。），那么就不重复执行, 因为第二步直接return了）
         // todo 3. 代码沙箱是个耗时操作,(消息队列？？？)
-        // 3. 调用沙箱， 获取到执行结果
-        // 4. 根据沙箱的执行结果， 设置题目的判题状态和信息
+        // 4. 调用沙箱， 获取到执行结果
+        // 5. 根据沙箱的执行结果， 设置题目的判题状态和信息
 
         // 1
         QuestionSubmit questionSubmit = questionSubmitService.getById(questionSubmitId);
@@ -64,8 +71,9 @@ public class JudgeServiceImpl implements JudgeService {
         long questionId = questionSubmit.getQuestionId();
         long userId = questionSubmit.getUserId();
 
-        // 2 调用沙箱
+        // 初始化沙箱
         CodeSandBox codeSandBox = CodeBoxFactory.newInstance(type);
+        CodeSandBoxProxy codeSandBoxProxy = new CodeSandBoxProxy(codeSandBox);
         ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
 //        executeCodeRequest.setInputList(Lists.newArrayList());
         executeCodeRequest.setCode(code);
@@ -75,12 +83,11 @@ public class JudgeServiceImpl implements JudgeService {
         if (question == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "题目不存在");
         }
-        // 如果不为等待状态
+        // 2. 如果不为等待状态 就不重复执行  防止多次提交
         if (!questionSubmit.getStatus().equals(Integer.parseInt(QuestionSubmitStatusEnum.WATTING.getValue()))) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "题目已经在判题");
         }
-
-        // 更改题目的状态
+        // 3. 更改题目的状态
         QuestionSubmit questionSubmitUpdate = new QuestionSubmit();
         questionSubmitUpdate.setId(questionSubmitId);
         questionSubmitUpdate.setStatus(Integer.parseInt(QuestionSubmitStatusEnum.RUNNING.getValue()));
@@ -89,8 +96,7 @@ public class JudgeServiceImpl implements JudgeService {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新题目状态为Running失败");
         }
 
-        // todo 使用代理的代码沙箱
-        // 调用代码沙箱
+        // 4. 调用代理代码沙箱
         String judgeCase = question.getJudgeCase();
         String judgeConfig = question.getJudgeConfig();
         JudgeConfig judgeConfigBean = JSONUtil.toBean(judgeConfig, JudgeConfig.class);
@@ -100,14 +106,28 @@ public class JudgeServiceImpl implements JudgeService {
         List<String> outputList = judgeCaseList.stream().map(JudgeCase::getOutput).collect(Collectors.toList());
         executeCodeRequest.setInputList(inputList);
 
-        ExecuteCodeResponse executeCodeResponse = codeSandBox.executeCode(executeCodeRequest);
+        ExecuteCodeResponse executeCodeResponse = codeSandBoxProxy.executeCode(executeCodeRequest);
 
-        // 对比执行结果
         List<String> boxOutputList = executeCodeResponse.getOutputList();
         String boxMessage = executeCodeResponse.getMessage();
         int boxStatus = executeCodeResponse.getStatus();
         JudgeInfo boxJudgeInfo = executeCodeResponse.getJudgeInfo();
 
+        // 4.5 更新题目的判题信息 judgeInfo 更新判题状态
+        // 更新数据库的判题结果 这个SUCCEED是判题服务结束， 无关答案对错
+        questionSubmitUpdate.setJudgeInfo(JSONUtil.toJsonStr(boxJudgeInfo));
+        questionSubmitUpdate.setStatus(boxStatus);
+        update = questionSubmitService.updateById(questionSubmitUpdate);
+        if (!update) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新题目提交状态为 判题结束 失败");
+        }
+
+        // 5. 对比执行结果 这里使用策略模式 得到返回结果
+        // 比如原本设定的timeLimit是针对C++的， 执行java可能要额外花10s， 因此需要不同的判题策略（question里面定义的判题标准是针对C++的）
+        // 先通过代码沙箱得到 实际的执行结果， 然后针对不同的情况(比如语言)，使用不同的判题策略， 最终得到返回结果，
+
+        // todo status封装成Enum // 1 表示成功 0表示失败
+        // 如何切换策略? 定义一个JudgeManager， 根据传入的关键词 返回策略（工厂）
         QuestionSubmitVO result = new QuestionSubmitVO();
         result.setLanguage(language);
         result.setCode(code);
@@ -116,40 +136,20 @@ public class JudgeServiceImpl implements JudgeService {
         result.setQuestionId(questionId);
         result.setUserId(userId);
 
-        // todo status封装成Enum
-        if (boxStatus == 0) {
-            result.setStatus(0);
-            return result;
-        }
+        JudgeStrategy judgeStrategy = JudgeStrategyFactory.getStrategy(language);
+        JudgeContext judgeContext = new JudgeContext();
+        judgeContext.setJudgeInfo(boxJudgeInfo);
+        judgeContext.setInputList(inputList);
+        judgeContext.setOutputList(boxOutputList);
+        judgeContext.setQuestion(question);
+        judgeContext.setStatus(boxStatus);
 
-        // todo 对比沙箱运行的结果 和 预期的结果的区别
-        if (boxJudgeInfo.getMemory() > judgeConfigBean.getMemoryLimit() || boxJudgeInfo.getTime() > judgeConfigBean.getTimeLimit()) {
-            result.setStatus(0);
-            return result;
-        }
-        if (boxOutputList.size() != outputList.size()) {
-            result.setStatus(0);
-            return result;
-        }
-        int flag = 0;
-        for (int i = 0;i<boxOutputList.size();i++) {
-            String s = boxOutputList.get(i);
-            if (!s.equals(outputList.get(i))) {
-                flag = 1;
-                break;
-            }
-        }
-        if (flag == 1) {
-            result.setStatus(0);
-            return result;
-        }
-        // 1 表示成功 0表示失败
+        QuestionSubmitVO questionSubmitVO = judgeStrategy.doJudge(judgeContext, judgeConfigBean, outputList);
+        questionSubmitVO.setLanguage(language);
+        questionSubmitVO.setCode(code);
+        questionSubmitVO.setQuestionId(questionId);
+        questionSubmitVO.setUserId(userId);
 
-        // todo 这段后面的判题逻辑可以封装成一个函数
-        result.setStatus(1);
-        return null;
+        return questionSubmitVO;
     }
-
-    // todo 使用策略模式 解决针对不同的语言、不同的题目使用不同的代码沙箱的问题
-    // 比如原本设定的timeLimit是针对C++的， 执行java可能要额外花10s， 因此需要不同的判题策略
 }

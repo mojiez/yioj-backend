@@ -2,9 +2,11 @@ package com.yichen.yioj.judge.codesandbox.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class JudgeInfo {
     /**
      * 程序执行信息
